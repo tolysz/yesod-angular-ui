@@ -23,7 +23,7 @@ library
                  , Text.Naked.Coffee
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base >=4.7 && <4.9 -- 7.6.3 is gone
+  build-depends:       base >=4.7 && <4.9
                ,       text
                ,       template-haskell
                ,       transformers
