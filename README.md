@@ -1,3 +1,8 @@
+[![Coverage Status](https://img.shields.io/coveralls/tolysz/yesod-angular-ui.svg)](https://coveralls.io/r/tolysz/yesod-angular-ui)
+[![Build Status](https://travis-ci.org/tolysz/yesod-angular-ui.svg?branch=master)](https://travis-ci.org/tolysz/yesod-angular-ui)
+[![Latest Version](https://img.shields.io/hackage/v/yesod-angular-ui.svg)](https://hackage.haskell.org/package/yesod-angular-ui)
+
+
 yesod-angular-ui
 ================
 
