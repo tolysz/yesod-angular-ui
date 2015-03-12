@@ -61,8 +61,8 @@ autoHamlet state view = do
   let !boo = unsafePerformIO $ print fn
 #endif
   if unsafePerformIO $ doesFileExist fn
-    then  [| $(hamletFile fn) |]
-    else  [| [hamlet| <!-- #{fn} --> |] |]
+    then  [| $(ihamletFile fn) |]
+    else  [| [ihamlet| <!-- #{fn} --> |] |]
 {-# NOINLINE autoHamlet #-}
 
 autoJulius :: Text -> Text -> Maybe ExpQ
