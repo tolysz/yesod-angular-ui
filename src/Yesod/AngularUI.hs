@@ -10,6 +10,7 @@
   , UndecidableInstances
   , ScopedTypeVariables
   , RankNTypes
+  , TypeFamilies
   #-}
 
 module Yesod.AngularUI
@@ -88,7 +89,10 @@ import           Yesod.Core                 (Route, Yesod,
                                              getUrlRenderParams, getMessageRender,  getYesod, lift,
                                              lookupGetParam, newIdent,
                                              sendResponse, notFound,
-                                             toWidget, whamlet)
+                                             toWidget, whamlet, toWidgetBody)
+import           Yesod.Core.Widget
+import qualified Text.Blaze.Html5 as H
+import Text.Jasmine (minify)
 import           Yesod.Core.Types
 import Yesod.Core.Content
 import           Yesod.Core.Json
@@ -107,9 +111,7 @@ import Control.Monad.IO.Class
 import Yesod.AngularUI.Router
 import Text.Shakespeare.I18N
 import Data.List
-
--- import Text.Shakespeare.I18N
--- data SomeMessage master = forall msg. RenderMessage master msg => SomeMessage msg
+import qualified Data.Text.Lazy.Encoding as E (encodeUtf8, decodeUtf8)
 
 class (Yesod master) => YesodAngular master where
     urlAngularJs :: [master -> Either (Route master) Text]
@@ -117,8 +119,7 @@ class (Yesod master) => YesodAngular master where
                   -- > add bower packages
 
     angularUIEntry :: WidgetT master IO ()
-    angularUIEntry = [whamlet|<div data-ui-view>|] -- bla
-
+    angularUIEntry = [whamlet|<div data-ui-view>|]
     wrapAngularUI :: Text ->  WidgetT master IO ()
     wrapAngularUI modname = [whamlet|ng-app="#{modname}"|]
 
@@ -141,11 +142,12 @@ data (Monad m) => AngularWriter master m  = AngularWriter
     , combined       :: HtmlUrlI18n (SomeMessage master) (Route master)
     -- , bower packages
     , awBower        :: [Text]
+    , awStateName    :: [Text]
     }
 instance (Monad m) => Monoid (AngularWriter master m) where
-    mempty = AngularWriter mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
-    (AngularWriter a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14)
-        `mappend` (AngularWriter b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14)
+    mempty = AngularWriter mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
+    (AngularWriter a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15)
+        `mappend` (AngularWriter b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15)
         = AngularWriter
             (mappend a1 b1)
             (mappend a2 b2)
@@ -161,6 +163,7 @@ instance (Monad m) => Monoid (AngularWriter master m) where
             (mappend a12 b12)
             (mappend a13 b13)
             (mappend a14 b14)
+            (mappend a15 b15)
 
 type GAngular master m = WriterT (AngularWriter master m) (HandlerT master m)
 -- renSoMsg :: (SomeMessage master) -> Text.Hamlet.Translate (SomeMessage master)
@@ -233,17 +236,18 @@ runAngularUI cache p ga dl = do
               else [julius|
            |]
 
-
     modname <- newIdent
     let defaultRoute =
-            case awDefaultRoute of
-                First (Just x) -> [julius|.otherwise("#{rawJS x}")|]
-                First Nothing -> mempty
+            case (awDefaultRoute, awStateName) of
+                (First (Just x),_)   -> [julius|.otherwise("#{rawJS x}")|]
+                (_, x:_) -> [julius|.otherwise("#{rawJS x}")|]
+                (_,[])   -> mempty
     dl modname $ do
         mapM_ (\x -> addScriptEither $ x master) urlAngularJs
         angularUIEntry --  = [whamlet|<div data-ui-view layout=row layout-fill>|] -- bla
-        mapM_ toWidget awLook
-        toWidget [julius|
+        toWidgetHead $ Minify awLook
+        toWidget (combined mrender urender)
+        toWidgetBody $ Minify [julius|
 ^{awSetup}
 
 angular
@@ -260,6 +264,14 @@ angular
     });
    ^{awControllers}
 |]
+
+newtype Minify a = Minify a
+
+instance render ~ RY site => ToWidgetHead site (Minify [CssUrl (Route site)]) where
+    toWidgetHead (Minify j) = toWidgetHead $ \r -> H.style $ preEscapedLazyText $  mconcat $ map (renderCssUrl r) j
+
+instance render ~ RY site => ToWidgetBody site (Minify (render -> Javascript)) where
+    toWidgetBody (Minify j) = toWidget $ \r -> H.script $ preEscapedLazyText $ E.decodeUtf8 $ minify $ E.encodeUtf8 $ renderJavascriptUrl r j
 
 addModules :: (Monad m) => [Text] -> GAngular master m ()
 addModules x = tell mempty{ awModules = x } 
@@ -576,6 +588,7 @@ addCtrlRawState name'' route template controller xcss = do
     tell mempty
         { awPartials    = Map.singleton name (nullAuth, template)
         , combined      = [ihamlet|<script type="text/ng-template" id="?partial=#{name}">^{template} |]
+        , awStateName   = [name'']
         , awStates      = [julius|.state("#{rawJS name''}", { url:"#{rawJS route}", controller:#{rawJS name}, templateUrl:"?partial=#{rawJS name}"})|]
         , awControllers = [julius|var #{rawJS name} = ^{controller};|]
         , awLook        = xcss
@@ -618,6 +631,7 @@ addCtrlRawStateAuth a name'' route template controller xcss = do
      tell mempty
          { awPartials = Map.singleton name (a, template)
          , combined = [ihamlet|<script type="text/ng-template" id="?partial=#{name}">^{template} |]
+         , awStateName   = [name'']
          , awStates = [julius|
      .state("#{rawJS name''}"
            , {url:"#{rawJS route}"
@@ -646,6 +660,7 @@ addCtrlRawStateAuth2 name'' route template controller xcss a v = do
     tell mempty
         { awPartials = Map.singleton name (a v, template)
         , combined = [ihamlet|<script type="text/ng-template" id="?partial=#{name}">^{template} |]
+        , awStateName   = [name'']
         , awStates = [julius|
   .state("#{rawJS name''}"
           , { url:"#{rawJS route}"
@@ -676,6 +691,7 @@ addCtrlRawStateAuth2E name'' route template controller xcss a v = do
      tell mempty
         { awPartials = Map.singleton name (a v, template)
         , combined = [ihamlet|<script type="text/ng-template" id="?partial=#{name}">^{template} |]
+        , awStateName   = [name'']
         , awStates = [julius|
   .state("#{rawJS name''}"
           , { url:"#{rawJS route}"
@@ -689,7 +705,8 @@ addCtrlRawStateAuth2E name'' route template controller xcss a v = do
         }
    unless a' $
       tell mempty
-        { awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", template: '<ui-view/>' })|]
+        { awStateName   = [name'']
+        , awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", template: '<ui-view/>' })|]
         }
 
 
@@ -706,7 +723,8 @@ addCtrlRawStateJC :: ( Monad m
 addCtrlRawStateJC name'' route {- !template -} controller xcss = do
     name <- saneName name''
     tell mempty
-        { awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", controller:#{rawJS name} })|]
+        { awStateName   = [name'']
+        , awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", controller:#{rawJS name} })|]
         , awControllers = [julius|var #{rawJS name} = ^{controller};|]
         , awLook = xcss
         }
@@ -727,6 +745,7 @@ addCtrlRawStateV1 name'' vi route template controller xcss = do
     tell mempty
         { awPartials = Map.singleton name (nullAuth, template)
         , combined = [ihamlet|<script type="text/ng-template" id="?partial=#{name}">^{template} |]
+        , awStateName   = [name'']
         , awStates = [julius|
    .state("#{rawJS name''}"
          , { url:"#{rawJS route}"
@@ -762,6 +781,7 @@ addCtrlRawStateV1Auth name'' vi route template controller xcss a v = do
     tell mempty
         { awPartials = Map.singleton name (a v, template)
         , combined = [ihamlet|<script type="text/ng-template" id="?partial=#{name}">^{template} |]
+        , awStateName   = [name'']
         , awStates = [julius|
    .state("#{rawJS name''}"
          , { url:"#{rawJS route}"
@@ -786,7 +806,8 @@ addStateA :: ( Monad m
      -- ^ empty state ?
 addStateA name'' route =
     tell mempty
-        { awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", template: '<ui-view/>' })|]
+        { awStateName   = [name'']
+        , awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", template: '<ui-view/>' })|]
         }
 
 addStateAAuth :: ( Monad m
@@ -802,7 +823,8 @@ addStateAAuth name'' route a v = do
    a' <- lift (a v)
    when a' $
     tell mempty
-        { awStates = [julius|
+        { awStateName   = [name'']
+        , awStates = [julius|
  .state("#{rawJS name''}"
        , {url:"#{rawJS route}"
        , data: { auth: #{toJSON v} }
