@@ -11,6 +11,7 @@
   , ScopedTypeVariables
   , RankNTypes
   , TypeFamilies
+  , ViewPatterns
   #-}
 
 module Yesod.AngularUI
@@ -134,7 +135,7 @@ data (Monad m) => AngularWriter master m  = AngularWriter
     , awConfigs      :: JavascriptUrl (Route master)
     , awSetup        :: JavascriptUrl (Route master)
     , awModules      :: [Text]
-    , awDefaultRoute :: First Text
+    , awDefaultRoute :: [Text]
     , awLook         :: [CssUrl (Route master)]
     , awStates       :: JavascriptUrl (Route master)
 --    , awMenu         :: (Map Text UrlOrState)
@@ -239,8 +240,8 @@ runAngularUI cache p ga dl = do
     modname <- newIdent
     let defaultRoute =
             case (awDefaultRoute, awStateName) of
-                (First (Just x),_)   -> [julius|.otherwise("#{rawJS x}")|]
-                (_, x:_) -> [julius|.otherwise("#{rawJS x}")|]
+                (filter (`elem` awStateName) -> x:_, _)  -> [julius|.otherwise("#{rawJS x}")|]
+                (_, x:_) ->             [julius|.otherwise("#{rawJS x}")|]
                 (_,[])   -> mempty
     dl modname $ do
         mapM_ (\x -> addScriptEither $ x master) urlAngularJs
@@ -833,7 +834,7 @@ addStateAAuth name'' route a v = do
         }
 
 setDefaultRoute :: (Monad m) => Text -> GAngular master m()
-setDefaultRoute x = tell mempty { awDefaultRoute = First $ Just x }
+setDefaultRoute x = tell mempty { awDefaultRoute = [x] }
 
 addFactoryStore :: (Monad m) => Text -> GAngular master m ()
 addFactoryStore name = addFactory (name <> "Store") [julius| function(){
