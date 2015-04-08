@@ -18,13 +18,11 @@ import Text.Cassius
 import Text.Naked.Coffee
 import Text.TypeScript
 
--- import Language.Haskell.TH.Syntax
 import Language.Haskell.TH.Lib (ExpQ)
 import qualified Data.Text as T
 import Data.Either
 import Prelude
 import Control.Monad
---import Control.Monad.IO.Class
 
 import System.Directory (doesFileExist)
 import System.IO.Unsafe (unsafePerformIO)
@@ -44,7 +42,7 @@ fnCreate (T.null -> True)  (T.replace "@" "AT" -> nam) suffix = T.unpack $ T.con
 fnCreate parent            (T.unpack -> "")            suffix = T.unpack $ T.concat ["angular/", T.replace "." "/" parent, ".", suffix]
 fnCreate parent            (T.replace "@" "AT" -> nam) suffix = T.unpack $ T.concat ["angular/", T.replace "." "/" parent, ".", nam, ".", suffix]
 
--- autoJulius :: Text -> Text -> Maybe ExpQ
+
 autoMaybe :: (String -> ExpQ) -> Text -> Text -> Text -> Maybe ExpQ
 autoMaybe ex ext state view =
     let fn = fnCreate state view ext

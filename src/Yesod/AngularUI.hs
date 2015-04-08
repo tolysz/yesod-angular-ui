@@ -82,7 +82,7 @@ import           Data.Maybe                 (fromMaybe, catMaybes)
 import           Data.Monoid                (First (..), Monoid (..), (<>))
 import           Data.Text                  (Text)
 import           Text.Hamlet
-import Text.Blaze.Html
+import           Text.Blaze.Html
 import           Text.Julius
 import           Text.Lucius
 import           Yesod.Core                 (Route, Yesod,
@@ -93,25 +93,23 @@ import           Yesod.Core                 (Route, Yesod,
                                              toWidget, whamlet, toWidgetBody)
 import           Yesod.Core.Widget
 import qualified Text.Blaze.Html5 as H
-import Text.Jasmine (minify)
+import           Text.Jasmine (minify)
 import           Yesod.Core.Types
-import Yesod.Core.Content
+import           Yesod.Core.Content
 import           Yesod.Core.Json
-import Language.Haskell.TH.Syntax (Q, Exp (..), Lit (..))
-import Language.Haskell.TH (listE)
+import           Language.Haskell.TH.Syntax (Q, Exp (..), Lit (..))
+import           Language.Haskell.TH (listE)
 import qualified Data.Text as T
-import Data.Char (isAlpha)
+import           Data.Char (isAlpha)
 
-import Control.Monad (when, unless, (>=>))
+import           Control.Monad (when, unless, (>=>))
 import           Data.Either
-import           Prelude                    hiding (head, init,
-                                                    last, readFile,
-                                                    tail, writeFile)
-import Control.Monad.Trans.Resource
-import Control.Monad.IO.Class
-import Yesod.AngularUI.Router
-import Text.Shakespeare.I18N
-import Data.List
+import           Prelude   hiding (head, init, last, readFile, tail, writeFile)
+import           Control.Monad.Trans.Resource
+import           Control.Monad.IO.Class
+import           Yesod.AngularUI.Router
+import           Text.Shakespeare.I18N
+import           Data.List
 import qualified Data.Text.Lazy.Encoding as E (encodeUtf8, decodeUtf8)
 
 class (Yesod master) => YesodAngular master where
@@ -240,8 +238,8 @@ runAngularUI cache p ga dl = do
     modname <- newIdent
     let defaultRoute =
             case (awDefaultRoute, awStateName) of
-                (filter (`elem` awStateName) -> x:_, _)  -> [julius|.otherwise("#{rawJS x}")|]
-                (_, x:_) ->             [julius|.otherwise("#{rawJS x}")|]
+                (filter (`elem` awStateName) -> x:_, _)  -> [julius|.otherwise("/#{rawJS x}")|]
+                (_, x:_) ->             [julius|.otherwise("/#{rawJS x}")|]
                 (_,[])   -> mempty
     dl modname $ do
         mapM_ (\x -> addScriptEither $ x master) urlAngularJs
@@ -706,8 +704,8 @@ addCtrlRawStateAuth2E name'' route template controller xcss a v = do
         }
    unless a' $
       tell mempty
-        { awStateName   = [name'']
-        , awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", template: '<ui-view/>' })|]
+        { awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", template: '<ui-view/>' })|]
+--         , awStateName   = [name''] -- TODO: if map fix
         }
 
 
