@@ -19,10 +19,7 @@ git@github.com:tolysz/yesod-angular-ui.git
 library
   exposed-modules: Yesod.AngularUI
                  , Yesod.AngularUI.Router
-                 , Yesod.AngularUI.TH
                  , Yesod.AngularUI.Types
-                 , Yesod.AngularUI.Common
---                 , Yesod.AngularUI.State
              -- push for sheakspeere
                  , Text.Naked.Coffee
   -- other-modules:       
