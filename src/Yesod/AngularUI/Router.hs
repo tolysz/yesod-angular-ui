@@ -27,8 +27,6 @@ import Control.Monad
 import System.Directory (doesFileExist)
 import System.IO.Unsafe (unsafePerformIO)
 
-import Data.Maybe
-
 isRight :: Either a b -> Bool
 isRight (Right _) = True
 isRight _ = False

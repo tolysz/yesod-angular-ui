@@ -55,7 +55,7 @@ module Yesod.AngularUI
 
 --- the chaos
 import           Control.Applicative        ((<$>))
-import           Control.Monad.Trans.Writer (runWriterT, tell, execWriter)
+import           Control.Monad.Trans.Writer (WriterT, runWriterT, tell, execWriter)
 -- import           Data.Map.Strict                   (Map)
 import qualified Data.Map.Strict                   as Map
 import           Data.Maybe                 (fromMaybe, catMaybes)
@@ -77,18 +77,13 @@ import           Yesod.Core.Json
 import           Language.Haskell.TH.Syntax (Q, Exp (..), Lit (..))
 import           Language.Haskell.TH (listE)
 import qualified Data.Text as T
-import           Data.Char (isAlpha)
 
-import           Control.Monad ((>=>))
--- import           Data.Either
 import           Prelude   hiding (head, init, last, readFile, tail, writeFile)
 import           Control.Monad.Trans.Resource
 import           Control.Monad.IO.Class
 import           Text.Shakespeare.I18N
--- import           Data.List
 import qualified Data.Text.Lazy.Encoding as E (encodeUtf8, decodeUtf8)
 
--- import           Yesod.AngularUI.TH
 import           Yesod.AngularUI.Router
 import           Yesod.AngularUI.Types as TS
 
@@ -97,11 +92,10 @@ renSoMsg :: (SomeMessage master  -> Text) -> SomeMessage master -> Html
 renSoMsg f = toHtml . f
 
 runAngularUI :: (YesodAngular master)
-           => Bool                                                      -- ^ cache templates
-           -> GAngular master IO ()                                     -- ^ angular app
+           => GAngular master IO ()                                     -- ^ angular app
            -> (Text -> WidgetT master IO () -> HandlerT master IO Html) -- ^ layout
            -> HandlerT master IO Html
-runAngularUI cache {-p-} ga dl = do
+runAngularUI ga dl = do
     master <- getYesod
     mrender <- renSoMsg <$> getMessageRender
     urender <- getUrlRenderParams
@@ -153,10 +147,10 @@ addConfig :: (Monad m) => Text
                        -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
                        -> GAngular master m ()
 addConfig name' funcall = do
-    let name = name' `mappend` "Provider"
+    let n = name' `mappend` "Provider"
     tell mempty
-        { awConfigs = [julius|.config(["#{rawJS name}", function (#{rawJS name}){ 
-        #{rawJS name}.^{funcall}; }])|]
+        { awConfigs = [julius|.config(["#{rawJS n}", function (#{rawJS n}){
+        #{rawJS n}.^{funcall}; }])|]
         }
 
 addConfigRaw :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript)
@@ -174,9 +168,9 @@ addDirective n funcall =
 addController :: (Monad m) => Text
                            -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
                            -> GAngular master m ()
-addController name funcall =
+addController n funcall =
     tell mempty
-        { awDirectives = [julius|.controller("#{rawJS name}", ^{funcall} )|]
+        { awDirectives = [julius|.controller("#{rawJS n}", ^{funcall} )|]
         }
 
 
@@ -217,7 +211,6 @@ addRESTRaw n funcall =
           }])|]
         }
 
-
 addService :: (Monad m) =>
                       Text
                       -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
@@ -234,7 +227,7 @@ addProvide funcall =
 
 addConstant :: (Monad m) => Text -> ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master m ()
 -- ^ add constant, remember to quote if raw text
-addConstant name funcall = addProvide [julius|constant("#{rawJS name}",^{funcall})|]
+addConstant n funcall = addProvide [julius|constant("#{rawJS n}",^{funcall})|]
 
 addSetup :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript)
                       -> GAngular master m ()
@@ -244,31 +237,24 @@ addSetup funcall =
         { awSetup = [julius|^{funcall};|]
         }
 
-
 addCommand :: (FromJSON input, ToJSON output)
            => (input -> HandlerT master IO output)
            -> GAngular master IO Text
 -- ^ add a command (which is always printed)
-addCommand f = do
-    name <- lift newIdent
-    tell (mempty :: AngularWriter master IO) { awCommands = Map.singleton name handler }
-    return $ "?command=" `mappend` name
-  where
-    handler = requireJsonBody >>= fmap Just <$> f >>= maybe notFound (returnJson >=> sendResponse)
+addCommand f = addCommandMaybe (fmap (Just <$>) f)
 
 addCommandMaybe :: (FromJSON input, ToJSON output)
            => (input -> HandlerT master IO (Maybe output))
            -> GAngular master IO Text
 addCommandMaybe f = do
-    name <- lift newIdent
-    tell (mempty :: AngularWriter master IO) { awCommands = Map.singleton name handler }
-    return $ "?command=" `mappend` name
+    n <- lift newIdent
+    tell (mempty :: AngularWriter master IO) { awCommands = Map.singleton n handler }
+    return $ "?command=" `mappend` n
   where
     handler = requireJsonBody >>= f >>= \case
          Just output -> do repjson <- returnJson output
                            sendResponse repjson
          Nothing -> notFound
-
 
 addWhen :: ( Monad m
               , MonadThrow m
@@ -279,27 +265,11 @@ addWhen :: ( Monad m
                 -> GAngular master m ()
 addWhen fro to  = tell mempty {awRoutes = [julius|.when("#{rawJS fro}","#{rawJS to}")|] }
 
--- saneName name'' = mappend (mappend (T.filter isAlpha name'') "__") <$> lift newIdent
---
--- addStateA :: ( Monad m
---               , MonadThrow m
---               , MonadBaseControl IO m
---               , MonadIO m
---               ) => Text       -- ^ user-friendly name
---                 -> Text            -- ^ route pattern
---                 -> GAngular master m()
---      -- ^ empty state ?
--- addStateA name'' route =
---     tell mempty
---         { awStateName   = [name'']
---         , awStates = [julius|.state("#{rawJS name''}", {url:"#{rawJS route}", template: '<ui-view/>' })|]
---         }
-
 setDefaultRoute :: (Monad m) => Text -> GAngular master m()
 setDefaultRoute x = tell mempty { awDefaultRoute = [x] }
 
 addFactoryStore :: (Monad m) => Text -> GAngular master m ()
-addFactoryStore name = addFactory (name <> "Store") [julius| function(){
+addFactoryStore n = addFactory (n <> "Store") [julius| function(){
       var lc = {};
       return { update: function (s){ _.extend(lc,s)}
              , full: function (s){ return lc; }
@@ -315,42 +285,47 @@ addFactoryStore name = addFactory (name <> "Store") [julius| function(){
 
 
 
-
+url :: Monad m => Text -> WriterT (UiState master) m ()
 url u = tell mempty {uisUrl  = Just u}
+
+name :: Monad m => Text -> WriterT (UiState master) m ()
 name n = tell mempty {uisName  = First (Just n)}
 
+nameA :: Monad m => Text -> WriterT (UiState master) m ()
 nameA n = tell mempty
   { uisName    = First (Just n)
   , uiTC       = mempty { tcTempl = TmplInl "<ui-view/>" }
   , uiAbstract = True
   }
 
+addData :: Monad m => JavascriptUrl (Route master) -> WriterT (UiState master) m ()
 addData d = tell mempty {uiData = [d]}
 
+emptyFunction :: JavascriptUrl url
+emptyFunction = [julius| function(){} |]
+
 tcFile :: Text -> Q Exp
-tcFile state =
-   [|tell mempty { uisName = First (Just $(liftT state))
+tcFile st =
+   [|tell mempty { uisName = First (Just $(liftT st))
             , uiTC    = UiTC
-                      (TmplExt $(autoHamlet state ""))
-                      (CtrlExt $(fromMaybe [| emptyFunction |] $ autoJulius state ""))
-                      $(listE $ catMaybes [autoLucius state "", autoCassius state ""])
+                      (TmplExt $(autoHamlet st ""))
+                      (CtrlExt $(fromMaybe [| emptyFunction |] $ autoJulius st ""))
+                      $(listE $ catMaybes [autoLucius st "", autoCassius st ""])
             }|]
   where
     liftT t = do
         p <- [|T.pack|]
         return $ AppE p $ LitE $ StringL $ T.unpack t
 
-emptyFunction = [julius| function(){} |]
-
 tcVFile :: Text -> Text -> Q Exp
-tcVFile state view =
+tcVFile st view =
    [|tell mempty
-      { uisName = First (Just $(liftT state))
+      { uisName = First (Just $(liftT st))
       , uiV = [ ( $(liftT view)
                 , UiTC
-                    (TmplExt $(autoHamlet state view))
-                    (CtrlExt $(fromMaybe [| emptyFunction |] $ autoJulius state view))
-                    $(listE $ catMaybes [autoLucius state view, autoCassius state view])
+                    (TmplExt $(autoHamlet st view))
+                    (CtrlExt $(fromMaybe [| emptyFunction |] $ autoJulius st view))
+                    $(listE $ catMaybes [autoLucius st view, autoCassius st view])
                 )
               ]
       }|]
@@ -371,8 +346,6 @@ state sa = do
     tell mempty {awUiState = [a]}
     addUIState a
 
-sanitName name = mappend (mappend (T.filter isAlpha name) "__") <$> lift newIdent
-
 renderTemplate
   :: ( Monad m
      , MonadThrow m
@@ -382,11 +355,10 @@ renderTemplate
   => StateTemplate master -> GAngular master m (Maybe (JavascriptUrl (Route master)))
 renderTemplate = \case
   TmplExt t -> do
-        name <- lift newIdent
-        tell mempty  { -- awPartials = Map.singleton name (nullAuth, t)
-                      combined   = [ihamlet|<script type="text/ng-template" id="?partial=#{name}">^{t} |]
+        n <- lift newIdent
+        tell mempty  { combined   = [ihamlet|<script type="text/ng-template" id="?partial=#{n}">^{t} |]
                      }
-        return $ Just [js|templateUrl:"?partial=#{rawJS name}"|]
+        return $ Just [js|templateUrl:"?partial=#{rawJS n}"|]
   TmplInl t -> return $ Just [js|template:#{toJSON t}|]
   TmplProvider p -> return $ Just [js|templateProvider:^{p}|]
   TmplNone -> return Nothing
@@ -402,21 +374,21 @@ renderControler = \case
   CtrlName     n -> return $ Just [js|controller:#{rawJS n}|]
   CtrlNameAs a n -> return $ Just [js|controller:#{rawJS n}, controllerAs: "#{rawJS a}"|]
   CtrlExt      j -> do
-     name <- lift newIdent
-     tell mempty { awControllers = [julius|var #{rawJS name} = ^{j};|]}
-     return $ Just [js|controller:#{rawJS name}|]
+     n <- lift newIdent
+     tell mempty { awControllers = [julius|var #{rawJS n} = ^{j};|]}
+     return $ Just [js|controller:#{rawJS n}|]
   CtrlExtAs  a j -> do
-     name <- lift newIdent
-     tell mempty { awControllers = [julius|var #{rawJS name} = ^{j};|]}
-     return $ Just [js|controller:#{rawJS name}, controllerAs: "#{rawJS a}"|]
+     n <- lift newIdent
+     tell mempty { awControllers = [julius|var #{rawJS n} = ^{j};|]}
+     return $ Just [js|controller:#{rawJS n}, controllerAs: "#{rawJS a}"|]
   CtrlProvider  j -> do
-     name <- lift newIdent
-     tell mempty { awControllers = [julius|var #{rawJS name} = ^{j};|]}
-     return $ Just [js|controllerProvider:#{rawJS name}|]
+     n <- lift newIdent
+     tell mempty { awControllers = [julius|var #{rawJS n} = ^{j};|]}
+     return $ Just [js|controllerProvider:#{rawJS n}|]
   CtrlNone -> return Nothing
 
-
-concatJS c (catMaybes -> j:js) = j <> mconcat (map (c <>) js)
+concatJS :: Monoid m => m -> [Maybe m] -> m
+concatJS c (catMaybes -> j:rs) = j <> mconcat (map (c <>) rs)
 concatJS _ _ = mempty
 
 addUIState

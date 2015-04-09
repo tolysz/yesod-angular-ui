@@ -67,8 +67,7 @@ import Text.Shakespeare
 import Text.Julius
 import Prelude
 import qualified Data.Text.Lazy as T
-import Data.Text.Lazy.Builder (Builder, fromText, toLazyText, fromLazyText)
-
+import Data.Text.Lazy.Builder (fromLazyText)
 
 -- just kill the last semipcolon
 coffeeSettings :: Q ShakespeareSettings
