@@ -43,7 +43,9 @@ module Yesod.AngularUI
     , addRESTRaw
    -- placeholders for some generic rest api/ maybe a subsite?
     , tcFile
+    , utcFile
     , tcVFile
+    , utcVFile
     , state
     , url
     , name
@@ -283,8 +285,6 @@ addFactoryStore n = addFactory (n <> "Store") [julius| function(){
      }
     |]
 
-
-
 url :: Monad m => Text -> WriterT (UiState master) m ()
 url u = tell mempty {uisUrl  = Just u}
 
@@ -304,6 +304,35 @@ addData d = tell mempty {uiData = [d]}
 emptyFunction :: JavascriptUrl url
 emptyFunction = [julius| function(){} |]
 
+liftT :: Text -> Q Exp
+liftT t = do
+  p <- [|T.pack|]
+  return $ AppE p $ LitE $ StringL $ T.unpack t
+
+utcFile :: Text -> Text -> Q Exp
+utcFile u st =
+   [|tell mempty { uisName = First (Just $(liftT st))
+            , uisUrl  = Just $(liftT u)
+            , uiTC    = UiTC
+                      (TmplExt $(autoHamlet st ""))
+                      (CtrlExt $(fromMaybe [| emptyFunction |] $ autoJulius st ""))
+                      $(listE $ catMaybes [autoLucius st "", autoCassius st ""])
+            }|]
+
+utcVFile :: Text -> Text -> Text -> Q Exp
+utcVFile u st view =
+   [|tell mempty
+      { uisName = First (Just $(liftT st))
+      , uisUrl  = Just $(liftT u)
+      , uiV = [ ( $(liftT view)
+                , UiTC
+                    (TmplExt $(autoHamlet st view))
+                    (CtrlExt $(fromMaybe [| emptyFunction |] $ autoJulius st view))
+                    $(listE $ catMaybes [autoLucius st view, autoCassius st view])
+                )
+              ]
+      }|]
+
 tcFile :: Text -> Q Exp
 tcFile st =
    [|tell mempty { uisName = First (Just $(liftT st))
@@ -312,10 +341,6 @@ tcFile st =
                       (CtrlExt $(fromMaybe [| emptyFunction |] $ autoJulius st ""))
                       $(listE $ catMaybes [autoLucius st "", autoCassius st ""])
             }|]
-  where
-    liftT t = do
-        p <- [|T.pack|]
-        return $ AppE p $ LitE $ StringL $ T.unpack t
 
 tcVFile :: Text -> Text -> Q Exp
 tcVFile st view =
@@ -329,10 +354,6 @@ tcVFile st view =
                 )
               ]
       }|]
-  where
-    liftT t = do
-        p <- [|T.pack|]
-        return $ AppE p $ LitE $ StringL $ T.unpack t
 
 state
   :: ( Monad m
