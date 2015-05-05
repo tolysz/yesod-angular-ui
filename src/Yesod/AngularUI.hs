@@ -33,6 +33,7 @@ module Yesod.AngularUI
     , addProvide
     , addFilter
     , addConstant
+    , addValue
    -- some normal stuff
     , addSetup
    -- ^ before the code, maybe some imports?
@@ -230,6 +231,11 @@ addProvide funcall =
 addConstant :: (Monad m) => Text -> ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master m ()
 -- ^ add constant, remember to quote if raw text
 addConstant n funcall = addProvide [julius|constant("#{rawJS n}",^{funcall})|]
+
+
+addValue :: (Monad m) => Text -> ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master m ()
+-- ^ add constant, remember to quote if raw text
+addValue n funcall = addProvide [julius|value("#{rawJS n}",^{funcall})|]
 
 addSetup :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript)
                       -> GAngular master m ()
