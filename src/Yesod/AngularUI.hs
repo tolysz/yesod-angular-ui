@@ -25,6 +25,7 @@ module Yesod.AngularUI
     , addConfig
     , addConfigRaw
     , addService
+    , addRun
 
     , addFactoryStore
    -- ^ naive persistent store
@@ -154,6 +155,13 @@ addConfig name' funcall = do
     tell mempty
         { awConfigs = [julius|.config(["#{rawJS n}", function (#{rawJS n}){
         #{rawJS n}.^{funcall}; }])|]
+        }
+
+addRun :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+                       -> GAngular master m ()
+addRun funcall =
+    tell mempty
+        { awConfigs = [julius|.run(^{funcall})|]
         }
 
 addConfigRaw :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript)
