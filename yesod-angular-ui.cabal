@@ -1,5 +1,5 @@
 name:                yesod-angular-ui
-version:             0.1.0.1
+version:             0.1.1.0
 synopsis:            Angular Helpers
 description:         Library for developing i18n webapps with yesod and angular.
 homepage:            https://github.com/tolysz/yesod-angular-ui
