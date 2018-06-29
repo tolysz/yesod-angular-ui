@@ -1,0 +1,5 @@
+#resolver: lts-6.35
+resolver: nightly-2018-06-28
+#resolver: lts-11.15
+packages:
+- .

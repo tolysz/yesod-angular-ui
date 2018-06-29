@@ -60,7 +60,6 @@ module Yesod.AngularUI
 --- the chaos
 import           Control.Applicative        ((<$>))
 import           Control.Monad.Trans.Writer (WriterT, runWriterT, tell, execWriter)
--- import           Data.Map.Strict                   (Map)
 import qualified Data.Map.Strict                   as Map
 import           Data.Maybe                 (fromMaybe, catMaybes)
 import           Data.Monoid                (First (..), Monoid (..), (<>))
@@ -83,8 +82,7 @@ import           Language.Haskell.TH (listE)
 import qualified Data.Text as T
 
 import           Prelude   hiding (head, init, last, readFile, tail, writeFile)
-import           Control.Monad.Trans.Resource
-import           Control.Monad.IO.Class
+
 import           Text.Shakespeare.I18N
 import qualified Data.Text.Lazy.Encoding as E (encodeUtf8, decodeUtf8)
 
@@ -96,9 +94,9 @@ renSoMsg :: (SomeMessage master  -> Text) -> SomeMessage master -> Html
 renSoMsg f = toHtml . f
 
 runAngularUI :: (YesodAngular master)
-           => GAngular master IO ()                                     -- ^ angular app
-           -> (Text -> WidgetT master IO () -> HandlerT master IO Html) -- ^ layout
-           -> HandlerT master IO Html
+           => GAngular master                                        -- ^ angular app
+           -> (Text -> WidgetFor master () -> HandlerFor master Html) -- ^ layout
+           -> HandlerFor master Html
 runAngularUI ga dl = do
     master <- getYesod
     mrender <- renSoMsg <$> getMessageRender
@@ -144,12 +142,12 @@ instance render ~ RY site => ToWidgetHead site (Minify [CssUrl (Route site)]) wh
 instance render ~ RY site => ToWidgetBody site (Minify (render -> Javascript)) where
     toWidgetBody (Minify j) = toWidget $ \r -> H.script $ preEscapedLazyText $ E.decodeUtf8 $ minify $ E.encodeUtf8 $ renderJavascriptUrl r j
 
-addModules :: (Monad m) => [Text] -> GAngular master m ()
+addModules :: [Text] -> GAngular master
 addModules x = tell mempty{ awModules = x } 
 
-addConfig :: (Monad m) => Text
+addConfig :: Text
                        -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                       -> GAngular master m ()
+                       -> GAngular master
 addConfig name' funcall = do
     let n = name' `mappend` "Provider"
     tell mempty
@@ -157,51 +155,51 @@ addConfig name' funcall = do
         #{rawJS n}.^{funcall}; }])|]
         }
 
-addRun :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                       -> GAngular master m ()
+addRun :: ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+                       -> GAngular master 
 addRun funcall =
     tell mempty
         { awConfigs = [julius|.run(^{funcall})|]
         }
 
-addConfigRaw :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                          -> GAngular master m ()
+addConfigRaw :: ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+             -> GAngular master
 addConfigRaw funcall = tell mempty { awConfigs = [julius|.config(^{funcall})|] }
 
-addDirective :: (Monad m) => Text
-                          -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                          -> GAngular master m ()
+addDirective :: Text
+             -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+             -> GAngular master
 addDirective n funcall =
     tell mempty
         { awDirectives = [julius|.directive("#{rawJS n}", ^{funcall} )|]
         }
 
-addController :: (Monad m) => Text
-                           -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                           -> GAngular master m ()
+addController :: Text
+              -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+              -> GAngular master
 addController n funcall =
     tell mempty
         { awDirectives = [julius|.controller("#{rawJS n}", ^{funcall} )|]
         }
 
 
-addFilter :: (Monad m) => Text
-                       -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                       -> GAngular master m ()
+addFilter :: Text
+          -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+          -> GAngular master
 addFilter n funcall =
     tell mempty
         { awDirectives = [julius|.filter("#{rawJS n}", ^{funcall} )|]
         }
 
 
-addFactory :: (Monad m) => Text
-                        -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                        -> GAngular master m ()
+addFactory :: Text
+           -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+           -> GAngular master
 addFactory n funcall = addProvide [js|factory("#{rawJS n}",^{funcall})|]
 
-addREST :: (Monad m) => Text
-                      -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                      -> GAngular master m ()
+addREST :: Text
+        -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+        -> GAngular master
 addREST n funcall =
     tell mempty
         { awModules = ["ngResource"]
@@ -210,9 +208,9 @@ addREST n funcall =
           return $resource(^{funcall}); }])|]
         }
 
-addRESTRaw :: (Monad m) => Text
-                        -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                        -> GAngular master m ()
+addRESTRaw :: Text
+           -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+           -> GAngular master
 addRESTRaw n funcall =
     tell mempty
         { awModules = ["ngResource"]
@@ -222,31 +220,30 @@ addRESTRaw n funcall =
           }])|]
         }
 
-addService :: (Monad m) =>
-                      Text
-                      -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                      -> GAngular master m ()
+addService :: Text
+           -> ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+           -> GAngular master 
 -- ^ adds a service
 addService n funcall = addProvide [js|service("#{rawJS n}",^{funcall})|]
 
-addProvide :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master m ()
+addProvide :: ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master
 addProvide funcall =
     tell mempty
         { awServices = [julius|
         $provide.^{funcall} ;|]
         }
 
-addConstant :: (Monad m) => Text -> ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master m ()
+addConstant :: Text -> ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master
 -- ^ add constant, remember to quote if raw text
 addConstant n funcall = addProvide [julius|constant("#{rawJS n}",^{funcall})|]
 
 
-addValue :: (Monad m) => Text -> ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master m ()
+addValue :: Text -> ((Route master -> [(Text, Text)] -> Text) -> Javascript) -> GAngular master
 -- ^ add constant, remember to quote if raw text
 addValue n funcall = addProvide [julius|value("#{rawJS n}",^{funcall})|]
 
-addSetup :: (Monad m) => ((Route master -> [(Text, Text)] -> Text) -> Javascript)
-                      -> GAngular master m ()
+addSetup :: ((Route master -> [(Text, Text)] -> Text) -> Javascript)
+                      -> GAngular master 
 -- ^ inject this code befor calling angular
 addSetup funcall =
     tell mempty
@@ -254,17 +251,17 @@ addSetup funcall =
         }
 
 addCommand :: (FromJSON input, ToJSON output)
-           => (input -> HandlerT master IO output)
-           -> GAngular master IO Text
+           => (input -> HandlerFor master output)
+           -> GAngularT master Text
 -- ^ add a command (which is always printed)
 addCommand f = addCommandMaybe (fmap (Just <$>) f)
 
 addCommandMaybe :: (FromJSON input, ToJSON output)
-           => (input -> HandlerT master IO (Maybe output))
-           -> GAngular master IO Text
+           => (input -> HandlerFor master (Maybe output))
+           -> GAngularT master Text
 addCommandMaybe f = do
     n <- lift newIdent
-    tell (mempty :: AngularWriter master IO) { awCommands = Map.singleton n handler }
+    tell (mempty :: AngularWriter master ()) { awCommands = Map.singleton n handler }
     return $ "?command=" `mappend` n
   where
     handler = requireJsonBody >>= f >>= \case
@@ -272,19 +269,15 @@ addCommandMaybe f = do
                            sendResponse repjson
          Nothing -> notFound
 
-addWhen :: ( Monad m
-              , MonadThrow m
-              , MonadBaseControl IO m
-              , MonadIO m
-              ) => Text -- ^ one route
-                -> Text -- ^ the other one
-                -> GAngular master m ()
+addWhen :: Text -- ^ one route
+        -> Text -- ^ the other one
+        -> GAngular master
 addWhen fro to  = tell mempty {awRoutes = [julius|.when("#{rawJS fro}","#{rawJS to}")|] }
 
-setDefaultRoute :: (Monad m) => Text -> GAngular master m()
+setDefaultRoute :: Text -> GAngular master
 setDefaultRoute x = tell mempty { awDefaultRoute = [x] }
 
-addFactoryStore :: (Monad m) => Text -> GAngular master m ()
+addFactoryStore :: Text -> GAngular master
 addFactoryStore n = addFactory (n <> "Store") [julius| function(){
       var lc = {};
       return { update: function (s){ _.extend(lc,s)}
@@ -370,24 +363,16 @@ tcVFile st view =
       }|]
 
 state
-  :: ( Monad m
-     , MonadThrow m
-     , MonadBaseControl IO m
-     , MonadIO m
-     )
-  => GUiState master () -> GAngular master m ()
+  :: GUiState master ()
+  -> GAngularTU master (Maybe (JavascriptUrl (Route master)))
 state sa = do
     let a = execWriter sa
     tell mempty {awUiState = [a]}
     addUIState a
 
 renderTemplate
-  :: ( Monad m
-     , MonadThrow m
-     , MonadBaseControl IO m
-     , MonadIO m
-     )
-  => StateTemplate master -> GAngular master m (Maybe (JavascriptUrl (Route master)))
+  :: StateTemplate master
+  -> GAngularT master (Maybe (JavascriptUrl (Route master)))
 renderTemplate = \case
   TmplExt t -> do
         n <- lift newIdent
@@ -399,12 +384,8 @@ renderTemplate = \case
   TmplNone -> return Nothing
 
 renderControler
-  :: ( Monad m
-     , MonadThrow m
-     , MonadBaseControl IO m
-     , MonadIO m
-     )
-  => StateCtrl master -> GAngular master m (Maybe (JavascriptUrl (Route master)))
+  :: StateCtrl master
+  -> GAngularT master (Maybe (JavascriptUrl (Route master)))
 renderControler = \case
   CtrlName     n -> return $ Just [js|controller:#{rawJS n}|]
   CtrlNameAs a n -> return $ Just [js|controller:#{rawJS n}, controllerAs: "#{rawJS a}"|]
@@ -426,13 +407,7 @@ concatJS :: Monoid m => m -> [Maybe m] -> m
 concatJS c (catMaybes -> j:rs) = j <> mconcat (map (c <>) rs)
 concatJS _ _ = mempty
 
-addUIState
-  :: ( Monad m
-     , MonadThrow m
-     , MonadBaseControl IO m
-     , MonadIO m
-     )
-  => UiState master -> GAngular master m ()
+addUIState :: UiState master -> GAngularTU master (Maybe (JavascriptUrl (Route master)))
 addUIState UiState{..} = do
     let First (Just name'') = uisName
     let UiTC {..}           = uiTC

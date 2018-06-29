@@ -19,9 +19,8 @@ import           Data.Text                  (Text)
 import           Text.Hamlet
 import           Text.Julius
 import           Text.Lucius
-import           Yesod.Core                 (Route, Yesod)
+import           Yesod.Core                 (Route, Yesod, HandlerFor)
 import           Yesod.Core.Widget
-import           Yesod.Core.Types
 import           Data.Either
 import           Prelude   hiding (head, init, last, readFile, tail, writeFile)
 import           Text.Shakespeare.I18N
@@ -30,14 +29,14 @@ import           Data.List
 class (Yesod master) => YesodAngular master where
     urlAngularJs :: [master -> Either (Route master) Text]
     urlAngularJs  = []-- > add bower packages
-    angularUIEntry :: WidgetT master IO ()
+    angularUIEntry :: WidgetFor master ()
     angularUIEntry = [whamlet|<div data-ui-view>|]
-    wrapAngularUI :: Text ->  WidgetT master IO ()
+    wrapAngularUI :: Text ->  WidgetFor master ()
     wrapAngularUI modname = [whamlet|ng-app="#{modname}"|]
 
 
 data AngularWriter master m  = AngularWriter
-    { awCommands       :: Map Text (HandlerT master m ())
+    { awCommands       :: Map Text (HandlerFor master ())
     , awRoutes       :: JavascriptUrl (Route master)
     , awControllers  :: JavascriptUrl (Route master)
     , awServices     :: JavascriptUrl (Route master)
@@ -58,8 +57,9 @@ data AngularWriter master m  = AngularWriter
 
 instance Monoid (AngularWriter master m) where
     mempty = AngularWriter mempty  mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
+instance Semigroup (AngularWriter master m) where
     (AngularWriter a1 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16)
-        `mappend` (AngularWriter b1 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16)
+        <> (AngularWriter b1 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16)
         = AngularWriter
             (mappend a1 b1)
             (mappend a3 b3)
@@ -95,8 +95,9 @@ data StateTemplate master
 
 instance Monoid (StateTemplate master) where
     mempty = TmplNone
-    TmplNone `mappend` a = a
-    a `mappend` _ = a
+instance Semigroup (StateTemplate master) where
+    TmplNone <> a = a
+    a <> _ = a
 
 data StateCtrl master
    = CtrlNone
@@ -108,8 +109,9 @@ data StateCtrl master
 
 instance Monoid (StateCtrl master) where
     mempty = CtrlNone
-    CtrlNone `mappend` a = a
-    a `mappend` _ = a
+instance Semigroup (StateCtrl master) where
+    CtrlNone <> a = a
+    a <> _ = a
 
 data UiTC master = UiTC
   { tcTempl    :: StateTemplate master
@@ -119,7 +121,8 @@ data UiTC master = UiTC
 
 instance Monoid (UiState master) where
     mempty = UiState mempty mempty mempty mempty False mempty mempty
-    (UiState a1 a2 a3 a4 a5 a6 a7) `mappend` (UiState b1 b2 b3 b4 b5 b6 b7) = UiState
+instance Semigroup (UiState master) where
+    (UiState a1 a2 a3 a4 a5 a6 a7) <> (UiState b1 b2 b3 b4 b5 b6 b7) = UiState
        (mappend a1 b1)
        (mappend a2 b2)
        (mappend a3 b3)
@@ -130,10 +133,13 @@ instance Monoid (UiState master) where
 
 instance Monoid (UiTC maste) where
     mempty = UiTC mempty mempty mempty
-    (UiTC a0 a1 a2) `mappend` (UiTC b0 b1 b2) = UiTC
+instance Semigroup (UiTC maste) where
+    (UiTC a0 a1 a2) <> (UiTC b0 b1 b2) = UiTC
        (mappend a0 b0)
        (mappend a1 b1)
        (mappend a2 b2)
 
-type GAngular master m = WriterT (AngularWriter master m) (HandlerT master m)
+type GAngularT master a = WriterT (AngularWriter master a) (HandlerFor master ) a
+type GAngularTU master a = WriterT (AngularWriter master a) (HandlerFor master ) ()
+type GAngular master = WriterT (AngularWriter master ()) (HandlerFor master ) ()
 type GUiState master = Writer (UiState master)
