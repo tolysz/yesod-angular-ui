@@ -264,7 +264,8 @@ addCommandMaybe f = do
     tell (mempty :: AngularWriter master ()) { awCommands = Map.singleton n handler }
     return $ "?command=" `mappend` n
   where
-    handler = requireJsonBody >>= f >>= \case
+  -- todo: possibly use requireInsecureJsonBody
+    handler = requireCheckJsonBody >>= f >>= \case
          Just output -> do repjson <- returnJson output
                            sendResponse repjson
          Nothing -> notFound
@@ -364,7 +365,7 @@ tcVFile st view =
 
 state
   :: GUiState master ()
-  -> GAngularTU master (Maybe (JavascriptUrl (Route master)))
+  -> GAngular master
 state sa = do
     let a = execWriter sa
     tell mempty {awUiState = [a]}
@@ -372,7 +373,7 @@ state sa = do
 
 renderTemplate
   :: StateTemplate master
-  -> GAngularT master (Maybe (JavascriptUrl (Route master)))
+  -> GAngularR master
 renderTemplate = \case
   TmplExt t -> do
         n <- lift newIdent
@@ -385,7 +386,7 @@ renderTemplate = \case
 
 renderControler
   :: StateCtrl master
-  -> GAngularT master (Maybe (JavascriptUrl (Route master)))
+  -> GAngularR master
 renderControler = \case
   CtrlName     n -> return $ Just [js|controller:#{rawJS n}|]
   CtrlNameAs a n -> return $ Just [js|controller:#{rawJS n}, controllerAs: "#{rawJS a}"|]
@@ -407,7 +408,7 @@ concatJS :: Monoid m => m -> [Maybe m] -> m
 concatJS c (catMaybes -> j:rs) = j <> mconcat (map (c <>) rs)
 concatJS _ _ = mempty
 
-addUIState :: UiState master -> GAngularTU master (Maybe (JavascriptUrl (Route master)))
+addUIState :: UiState master -> GAngular master
 addUIState UiState{..} = do
     let First (Just name'') = uisName
     let UiTC {..}           = uiTC

@@ -139,7 +139,7 @@ instance Semigroup (UiTC maste) where
        (mappend a1 b1)
        (mappend a2 b2)
 
-type GAngularT master a = WriterT (AngularWriter master a) (HandlerFor master ) a
-type GAngularTU master a = WriterT (AngularWriter master a) (HandlerFor master ) ()
-type GAngular master = WriterT (AngularWriter master ()) (HandlerFor master ) ()
-type GUiState master = Writer (UiState master)
+type GAngularT  master a = WriterT (AngularWriter master                                      a) (HandlerFor master ) a
+type GAngularR  master   = WriterT (AngularWriter master (Maybe (JavascriptUrl (Route master)))) (HandlerFor master ) (Maybe (JavascriptUrl (Route master)))
+type GAngular   master   = WriterT (AngularWriter master (Maybe (JavascriptUrl (Route master)))) (HandlerFor master ) ()
+type GUiState   master   = Writer (UiState master)
